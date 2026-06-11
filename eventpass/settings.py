@@ -1,5 +1,7 @@
+import os
 from pathlib import Path
 from decouple import config, Csv
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -7,6 +9,11 @@ SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
+
+# Render automatically injects RENDER_EXTERNAL_HOSTNAME — add it without manual config
+_render_host = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if _render_host and _render_host not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_render_host)
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -49,20 +56,26 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'eventpass.wsgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='5432'),
-        'CONN_MAX_AGE': config('DB_CONN_MAX_AGE', default=60, cast=int),
-        'OPTIONS': {
-            'connect_timeout': 10,
-        },
+# DATABASE_URL is set by Render (and other PaaS). Individual vars used for local dev.
+_database_url = config('DATABASE_URL', default=None)
+
+if _database_url:
+    DATABASES = {
+        'default': dj_database_url.parse(_database_url, conn_max_age=600)
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME'),
+            'USER': config('DB_USER'),
+            'PASSWORD': config('DB_PASSWORD'),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+            'CONN_MAX_AGE': config('DB_CONN_MAX_AGE', default=60, cast=int),
+            'OPTIONS': {'connect_timeout': 10},
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

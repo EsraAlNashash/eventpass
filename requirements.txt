@@ -4,6 +4,7 @@ python-decouple==3.8
 
 # Database
 psycopg2-binary==2.9.6
+dj-database-url==2.3.0
 
 # Image & QR
 Pillow==10.4.0
