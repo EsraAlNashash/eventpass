@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>EventPass — Check-in</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:  #00c853;
+      --orange: #ff6d00;
+      --red:    #d50000;
+      --bg:     #0d1117;
+      --card:   #161b22;
+      --border: #30363d;
+      --text:   #e6edf3;
+      --muted:  #8b949e;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+    .logo span { color: #4f8ef7; }
+    .badge-staff {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: rgba(79, 142, 247, 0.15);
+      color: #4f8ef7;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Main layout ── */
+    main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 20px 20px;
+      gap: 20px;
+    }
+
+    /* ── Viewfinder ── */
+    .viewfinder-wrap {
+      position: relative;
+      width: min(280px, 80vw);
+      height: min(280px, 80vw);
+    }
+
+    #reader {
+      width: 100% !important;
+      height: 100% !important;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    /* strip html5-qrcode default UI */
+    #reader img, #reader button, #reader select { display: none !important; }
+    #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+
+    /* corner brackets */
+    .corner {
+      position: absolute;
+      width: 22px; height: 22px;
+      border-color: #fff;
+      border-style: solid;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .corner-tl { top: -2px; left: -2px;  border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+    .corner-tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+    .corner-bl { bottom: -2px; left: -2px;  border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+    .corner-br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+
+    /* scan line */
+    .scan-line {
+      position: absolute;
+      left: 6px; right: 6px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #4f8ef7, transparent);
+      animation: sweep 2s ease-in-out infinite;
+      z-index: 3;
+      pointer-events: none;
+    }
+    @keyframes sweep {
+      0%   { top: 10%; opacity: 1; }
+      50%  { top: 88%; opacity: 1; }
+      100% { top: 10%; opacity: 1; }
+    }
+
+    /* ── Status bar ── */
+    #status-bar {
+      width: min(320px, 90vw);
+      text-align: center;
+      font-size: 14px;
+      color: var(--muted);
+      min-height: 20px;
+      transition: color 0.2s;
+    }
+    #status-bar.loading { color: #4f8ef7; }
+
+    /* ── Result overlay ── */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    #overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #overlay.success  { background: rgba(0, 200, 83, 0.96); }
+    #overlay.warning  { background: rgba(255, 109, 0, 0.96); }
+    #overlay.error    { background: rgba(213, 0, 0, 0.96); }
+
+    .overlay-icon {
+      font-size: 72px;
+      line-height: 1;
+      animation: pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes pop {
+      from { transform: scale(0.4); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+
+    .overlay-status {
+      font-size: 28px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+    .overlay-name {
+      font-size: 22px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.95);
+    }
+    .overlay-sub {
+      font-size: 14px;
+      color: rgba(255,255,255,0.75);
+      text-align: center;
+      padding: 0 32px;
+    }
+
+    /* progress bar */
+    .progress-wrap {
+      width: 200px;
+      height: 4px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #fff;
+      border-radius: 4px;
+      width: 100%;
+      transform-origin: left;
+      transform: scaleX(1);
+    }
+    .progress-bar.running {
+      animation: drain var(--dismiss-ms, 3000ms) linear forwards;
+    }
+    @keyframes drain { to { transform: scaleX(0); } }
+
+    /* ── Manual entry ── */
+    .manual-section {
+      width: min(320px, 90vw);
+    }
+    details summary {
+      font-size: 13px;
+      color: var(--muted);
+      cursor: pointer;
+      text-align: center;
+      padding: 6px;
+      user-select: none;
+    }
+    details summary:hover { color: var(--text); }
+    .manual-form {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .manual-form input {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: monospace;
+      outline: none;
+    }
+    .manual-form input:focus { border-color: #4f8ef7; }
+    .manual-form button {
+      background: #4f8ef7;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .manual-form button:active { opacity: 0.85; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Event<span>Pass</span></div>
+  <div class="badge-staff">Staff</div>
+</header>
+
+<main>
+  <div class="viewfinder-wrap">
+    <div id="reader"></div>
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+    <div class="scan-line" id="scan-line"></div>
+  </div>
+
+  <div id="status-bar">Point camera at attendee QR code</div>
+
+  <div class="manual-section">
+    <details>
+      <summary>Enter UUID manually</summary>
+      <div class="manual-form">
+        <input id="manual-uuid" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+        <button onclick="submitUUID(document.getElementById('manual-uuid').value)">Go</button>
+      </div>
+    </details>
+  </div>
+</main>
+
+<!-- Result overlay -->
+<div id="overlay">
+  <div class="overlay-icon" id="overlay-icon"></div>
+  <div class="overlay-status" id="overlay-status"></div>
+  <div class="overlay-name" id="overlay-name"></div>
+  <div class="overlay-sub" id="overlay-sub"></div>
+  <div class="progress-wrap">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+</div>
+
+<script>
+  const DISMISS_MS = 3000;
+
+  let scanner = null;
+  let processing = false;
+  let dismissTimer = null;
+
+  const overlay    = document.getElementById('overlay');
+  const statusBar  = document.getElementById('status-bar');
+  const scanLine   = document.getElementById('scan-line');
+
+  // ── Scanner init ──────────────────────────────────────────────
+  async function startScanner() {
+    if (scanner) {
+      try { await scanner.stop(); } catch (_) {}
+    }
+    scanner = new Html5Qrcode('reader');
+
+    const size = Math.min(220, Math.floor(window.innerWidth * 0.62));
+
+    try {
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 12, qrbox: { width: size, height: size } },
+        onScanSuccess,
+        () => {}   // ignore per-frame failures
+      );
+      setStatus('Point camera at attendee QR code', '');
+      scanLine.style.display = '';
+    } catch (err) {
+      setStatus('Camera error: ' + err, 'error');
+      scanLine.style.display = 'none';
+    }
+  }
+
+  // ── Scan handler ─────────────────────────────────────────────
+  async function onScanSuccess(decodedText) {
+    if (processing) return;
+    await submitUUID(decodedText.trim());
+  }
+
+  // ── API call ─────────────────────────────────────────────────
+  async function submitUUID(uuid) {
+    if (processing || !uuid) return;
+    processing = true;
+
+    if (scanner) {
+      try { await scanner.stop(); } catch (_) {}
+    }
+    scanLine.style.display = 'none';
+    setStatus('Checking in…', 'loading');
+
+    let data;
+    try {
+      const t0 = Date.now();
+      const res = await fetch('/api/checkin/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uuid }),
+      });
+      data = await res.json();
+      console.log('API latency:', Date.now() - t0, 'ms', data);
+    } catch (e) {
+      data = { error: 'Network error — check connection' };
+    }
+
+    showResult(data);
+  }
+
+  // ── Result display ───────────────────────────────────────────
+  function showResult(data) {
+    let state, icon, title, name, sub;
+
+    if (data.status === 'checked_in') {
+      state = 'success';
+      icon  = '✓';
+      title = 'Checked In';
+      name  = data.name;
+      sub   = '🖨 Badge printing…' +
+              (data.print_status === 'failed' ? ' (printer error)' : '');
+
+    } else if (data.status === 'already_checked_in') {
+      state = 'warning';
+      icon  = '⚠';
+      title = 'Already Checked In';
+      name  = data.name;
+      const ts = data.checked_in_at
+        ? new Date(data.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '';
+      sub = ts ? `Checked in at ${ts}` : '';
+
+    } else {
+      state = 'error';
+      icon  = '✕';
+      title = 'Error';
+      name  = '';
+      sub   = data.error || 'Unknown error';
+    }
+
+    document.getElementById('overlay-icon').textContent   = icon;
+    document.getElementById('overlay-status').textContent = title;
+    document.getElementById('overlay-name').textContent   = name;
+    document.getElementById('overlay-sub').textContent    = sub;
+
+    overlay.className = `visible ${state}`;
+
+    // progress bar
+    const bar = document.getElementById('progress-bar');
+    bar.style.setProperty('--dismiss-ms', DISMISS_MS + 'ms');
+    bar.classList.remove('running');
+    void bar.offsetWidth;  // force reflow to restart animation
+    bar.classList.add('running');
+
+    // tap to dismiss early
+    overlay.addEventListener('click', dismissOnce, { once: true });
+
+    // auto-dismiss
+    clearTimeout(dismissTimer);
+    dismissTimer = setTimeout(dismiss, DISMISS_MS);
+  }
+
+  function dismissOnce() {
+    clearTimeout(dismissTimer);
+    dismiss();
+  }
+
+  async function dismiss() {
+    overlay.className = '';
+    processing = false;
+    document.getElementById('manual-uuid').value = '';
+    await startScanner();
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────
+  function setStatus(msg, cls) {
+    statusBar.textContent = msg;
+    statusBar.className = cls || '';
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────
+  startScanner();
+</script>
+</body>
+</html>
