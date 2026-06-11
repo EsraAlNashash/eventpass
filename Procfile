@@ -1,1 +1,1 @@
-web: gunicorn eventpass.wsgi --workers 2 --bind 0.0.0.0:$PORT --timeout 120 --log-level info
+web: python manage.py migrate --noinput && gunicorn eventpass.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --log-level info
