@@ -1,5 +1,5 @@
 import json
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
@@ -7,6 +7,10 @@ from django.utils import timezone
 from .models import Attendee
 from .utils.badge_generator import generate_badge_pdf
 from .utils.print_service import send_to_printer
+
+
+def home(request):
+    return HttpResponse('EventPass is running')
 
 
 def health_check(request):
