@@ -62,23 +62,34 @@ TEMPLATES = [
 WSGI_APPLICATION = 'eventpass.wsgi.application'
 
 # DATABASE_URL is set by Render (and other PaaS). Individual vars used for local dev.
+# Falls back to SQLite so collectstatic can run during Render's build phase
+# (DATABASE_URL is only injected at runtime, not build time).
 _database_url = config('DATABASE_URL', default=None)
+_db_name = config('DB_NAME', default=None)
 
 if _database_url:
     DATABASES = {
         'default': dj_database_url.parse(_database_url, conn_max_age=600)
     }
-else:
+elif _db_name:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': config('DB_NAME'),
+            'NAME': _db_name,
             'USER': config('DB_USER'),
             'PASSWORD': config('DB_PASSWORD'),
             'HOST': config('DB_HOST', default='localhost'),
             'PORT': config('DB_PORT', default='5432'),
             'CONN_MAX_AGE': config('DB_CONN_MAX_AGE', default=60, cast=int),
             'OPTIONS': {'connect_timeout': 10},
+        }
+    }
+else:
+    # Build-phase fallback: no DB needed for collectstatic
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
 
