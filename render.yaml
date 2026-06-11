@@ -2,7 +2,7 @@ services:
   - type: web
     name: eventpass
     runtime: python
-    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput"
+    buildCommand: "apt-get install -y fonts-dejavu-core fonts-liberation 2>/dev/null || true && pip install -r requirements.txt && python manage.py collectstatic --noinput"
     startCommand: "python manage.py migrate --noinput && gunicorn eventpass.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --log-level info"
     envVars:
       - key: SECRET_KEY

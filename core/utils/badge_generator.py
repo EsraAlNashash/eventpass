@@ -6,24 +6,51 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from django.core.files.base import ContentFile
 
-
-# Windows font paths
-_FONT_FILES = {
-    'Arial':           r'C:\Windows\Fonts\arial.ttf',
-    'Arial Bold':      r'C:\Windows\Fonts\arialbd.ttf',
-    'Times New Roman': r'C:\Windows\Fonts\times.ttf',
-    'Courier New':     r'C:\Windows\Fonts\cour.ttf',
-    'Verdana':         r'C:\Windows\Fonts\verdana.ttf',
+# Try platform font paths in order: Linux (Render/Ubuntu), Windows, macOS.
+# Falls back to PIL's built-in bitmap font if nothing is found.
+_FONT_CANDIDATES = {
+    'Arial': [
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+        r'C:\Windows\Fonts\arial.ttf',
+        '/Library/Fonts/Arial.ttf',
+        '/System/Library/Fonts/Supplemental/Arial.ttf',
+    ],
+    'Arial Bold': [
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
+        r'C:\Windows\Fonts\arialbd.ttf',
+    ],
+    'Times New Roman': [
+        '/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeSerif.ttf',
+        r'C:\Windows\Fonts\times.ttf',
+    ],
+    'Courier New': [
+        '/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeMono.ttf',
+        r'C:\Windows\Fonts\cour.ttf',
+    ],
+    'Verdana': [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+        r'C:\Windows\Fonts\verdana.ttf',
+    ],
 }
 
 
 def _load_font(family, size):
-    path = _FONT_FILES.get(family)
-    if path and os.path.exists(path):
-        try:
-            return ImageFont.truetype(path, size)
-        except Exception:
-            pass
+    for path in _FONT_CANDIDATES.get(family, []):
+        if os.path.exists(path):
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                continue
     return ImageFont.load_default()
 
 
@@ -35,7 +62,6 @@ def _hex_to_rgb(hex_color):
 def _image_to_pdf(pil_image, attendee_uuid):
     """Wrap a PIL image in a single-page PDF. Page size matches image at 96 DPI."""
     w_px, h_px = pil_image.size
-    # 1pt = 1/72 inch; at 96 DPI, 1px = 72/96 pt
     w_pt = w_px * 72 / 96
     h_pt = h_px * 72 / 96
 

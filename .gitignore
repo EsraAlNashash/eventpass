@@ -18,7 +18,8 @@ db.sqlite3
 db.sqlite3-journal
 
 # ── Media (user uploads & generated files) ───────────────────────────────────
-media/
+media/*
+!media/.gitkeep
 
 # ── Virtual environments ──────────────────────────────────────────────────────
 venv/
